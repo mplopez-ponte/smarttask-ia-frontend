@@ -181,7 +181,7 @@ export default function PerfilPage() {
       </p>
 
       {/* Contenedor centrado en desktop, ancho completo en móvil */}
-      <div style={{ maxWidth: 640, width: '100%', margin: '0 auto' }}>
+      <div style={{ width: '100%' }}>
 
         {/* ── Avatar / resumen ── */}
         <div className="st-card p-3 p-md-4 mb-3">

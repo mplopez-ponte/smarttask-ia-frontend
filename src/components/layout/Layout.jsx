@@ -35,7 +35,7 @@ const Sidebar = styled.aside`
   left: 0; top: 0; bottom: 0;
   z-index: 1041;
   
-  /* Flexbox estricto */
+  /* Flexbox estricto que heredarán todos los breakpoints */
   display: flex;
   flex-direction: column;
   overflow: hidden; 
@@ -48,11 +48,16 @@ const Sidebar = styled.aside`
     width: ${SIDEBAR_W};
     box-shadow: none;
   }
+
   @media (min-width: 769px) and (max-width: 992px) {
     width: ${SIDEBAR_W_TABLET};
+    /* Solución: Eliminamos el display: flex duplicado y el justify-content.
+       Dejamos que herede el Flexbox base. Solo controlamos su visibilidad (transform).
+    */
     transform: ${props => props.$open ? 'translateX(0)' : 'translateX(-100%)'};
     box-shadow: ${props => props.$open ? 'var(--st-shadow-lg)' : 'none'};
   }
+
   @media (max-width: 768px) {
     width: min(${SIDEBAR_W}, 85vw);
     transform: ${props => props.$open ? 'translateX(0)' : 'translateX(-100%)'};

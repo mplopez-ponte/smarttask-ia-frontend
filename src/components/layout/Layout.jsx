@@ -27,17 +27,20 @@ const Overlay = styled.div`
 const Sidebar = styled.aside`
   width: ${SIDEBAR_W};
   height: 100vh;
-  /* 🚀 Clave 1: Forzar altura real calculada dinámicamente por JS */
   height: calc(var(--vh, 1vh) * 100); 
+  /* 🚀 Clave 1: Forzar límite máximo estricto del viewport */
+  max-height: 100vh;
+  max-height: calc(var(--vh, 1vh) * 100);
   background: var(--st-surface);
   border-right: 1px solid var(--st-border);
   position: fixed;
   left: 0; top: 0; bottom: 0;
   z-index: 1041;
   
-  /* Flexbox estricto que heredarán todos los breakpoints */
+  /* Flexbox estricto */
   display: flex;
   flex-direction: column;
+  /* 🚀 Clave 2: Evita que el sidebar entero crezca hacia abajo */
   overflow: hidden; 
   
   transition: transform 0.28s cubic-bezier(0.4,0,0.2,1), width 0.28s;
@@ -51,9 +54,6 @@ const Sidebar = styled.aside`
 
   @media (min-width: 769px) and (max-width: 992px) {
     width: ${SIDEBAR_W_TABLET};
-    /* Solución: Eliminamos el display: flex duplicado y el justify-content.
-       Dejamos que herede el Flexbox base. Solo controlamos su visibilidad (transform).
-    */
     transform: ${props => props.$open ? 'translateX(0)' : 'translateX(-100%)'};
     box-shadow: ${props => props.$open ? 'var(--st-shadow-lg)' : 'none'};
   }
@@ -83,11 +83,13 @@ const LogoCircle = styled.div`
 
 const Nav = styled.nav`
   padding: 1rem 0.75rem;
-  flex: 1 1 auto; 
+  /* 🚀 Clave 3: Permite reducir el contenedor dinámicamente */
+  flex: 1 1 0%; 
+  min-height: 0; 
   display: flex; 
   flex-direction: column;
   
-  /* 🚀 Clave 2: El scroll vertical vive EXCLUSIVAMENTE aquí dentro */
+  /* 🚀 El scroll vertical vive EXCLUSIVAMENTE aquí dentro */
   overflow-y: auto; 
   overflow-x: hidden;
 
@@ -130,8 +132,10 @@ const UserBlock = styled.div`
   padding: 0.85rem 0.85rem 1.25rem;
   border-top: 1px solid var(--st-border);
   
-  /* 🚀 Clave 3: Bloquear cualquier reducción o aplastamiento flexible */
+  /* Bloquear cualquier reducción o aplastamiento flexible */
   flex-shrink: 0; 
+  /* 🚀 Clave 4: Empuja el bloque de usuario siempre a la base */
+  margin-top: auto; 
   
   overflow: visible;
   position: relative;
@@ -141,16 +145,8 @@ const UserBlock = styled.div`
   width: 100%;
 
   @media (max-width: 768px) {
-    /* Colchón de seguridad inferior reforzado para la botonera del sistema operativo */
     padding: 1rem 0.85rem 1.75rem; 
   }
-`;
-
-const UserCard = styled.div`
-  display: flex; gap: 0.65rem; align-items: center;
-  margin-bottom: 0.65rem; padding: 0.6rem 0.75rem;
-  border-radius: 10px; background: rgba(99,102,241,0.06); min-width: 0;
-  overflow: hidden;
 `;
 
 const Avatar = styled.div`

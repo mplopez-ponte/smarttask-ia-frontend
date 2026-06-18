@@ -157,6 +157,15 @@ const Avatar = styled.div`
   font-weight: 700; font-size: 1rem;
 `;
 
+const UserCard = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+  width: 100%;
+  overflow: hidden;
+`;
+
 const LogoutBtn = styled.button`
   width: 100%;
   display: flex;

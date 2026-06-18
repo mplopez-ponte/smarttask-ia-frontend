@@ -10,6 +10,7 @@ import TareasPage from './pages/TareasPage';
 import TareaDetallePage from './pages/TareaDetallePage';
 import PerfilPage from './pages/PerfilPage';
 import Layout from './components/layout/Layout';
+import UserCard from './components/UserCard';
 
 import 'bootstrap-icons/font/bootstrap-icons.css';
 import 'react-toastify/dist/ReactToastify.css';

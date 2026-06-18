@@ -45,10 +45,10 @@ function AppRoutes() {
       <Route path="/registro" element={<RutaPublica><RegisterPage /></RutaPublica>} />
       <Route path="/" element={<RutaPrivada><Layout /></RutaPrivada>}>
         <Route index element={<Navigate to="dashboard" replace />} />
-        <Route path="dashboard" element={<DashboardPage />} />
-        <Route path="tareas" element={<TareasPage />} />
-        <Route path="tareas/:id" element={<TareaDetallePage />} />
-        <Route path="perfil" element={<PerfilPage />} />
+        <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/tareas" element={<TareasPage />} />
+        <Route path="/tareas/:id" element={<TareaDetallePage />} />
+        <Route path="/perfil" element={<PerfilPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>

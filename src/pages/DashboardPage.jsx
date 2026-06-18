@@ -9,7 +9,6 @@ import {
 import { Doughnut, Bar, Line } from 'react-chartjs-2';
 import { statsService, iaService } from '../services/api.service';
 import { useAuth } from '../context/AuthContext';
-import { UserCard } from '../components/UserCard';
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale,
   BarElement, PointElement, LineElement, Title, Filler);

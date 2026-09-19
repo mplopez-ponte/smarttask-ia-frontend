@@ -1,299 +1,287 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { toast } from 'react-toastify';
 import { tareaService, iaService } from '../../services/api.service';
 
-const CATEGORIAS = ['General', 'Trabajo', 'Personal', 'Estudio', 'Proyecto', 'Salud', 'Finanzas', 'Hogar', 'Otro'];
-
 export default function ModalCrearTarea({ show, onHide, onCreada }) {
-  const [form, setForm] = useState({
-    titulo: '', descripcion: '', prioridad: 'media',
-    categoria: 'General', fechaVencimiento: '', etiquetas: ''
+  const [formData, setFormData] = useState({
+    titulo: '',
+    descripcion: '',
+    prioridad: 'media',
+    categoria: 'General',
+    fechaVencimiento: '',
+    etiquetas: '',
   });
-  const [cargando, setCargando] = useState(false);
-  const [sugirendoDesc, setSugirendoDesc] = useState(false);
 
-  // Bloquear scroll del body cuando el modal está abierto
-  useEffect(() => {
-    if (show) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-    return () => { document.body.style.overflow = ''; };
-  }, [show]);
-
-  // Cerrar con tecla Escape
-  useEffect(() => {
-    if (!show) return;
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape') onHide();
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [show, onHide]);
-
-  const handleChange = e => setForm({ ...form, [e.target.name]: e.target.value });
-
-  const handleSugerirDesc = async () => {
-    if (!form.titulo) return toast.warning('Escribe primero el título');
-    setSugirendoDesc(true);
-    try {
-      const { data } = await iaService.sugerirDescripcion({
-        titulo: form.titulo,
-        categoria: form.categoria,
-        prioridad: form.prioridad
-      });
-      setForm(f => ({ ...f, descripcion: data.descripcion }));
-      toast.success('Descripción generada por IA ✨');
-    } catch {
-      toast.error('Error al generar descripción');
-    } finally {
-      setSugirendoDesc(false);
-    }
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setCargando(true);
-    try {
-      const payload = {
-        ...form,
-        etiquetas: form.etiquetas
-          ? form.etiquetas.split(',').map(t => t.trim()).filter(Boolean)
-          : []
-      };
-      await tareaService.crear(payload);
-      toast.success('¡Tarea creada correctamente!');
-      setForm({
-        titulo: '', descripcion: '', prioridad: 'media',
-        categoria: 'General', fechaVencimiento: '', etiquetas: ''
-      });
-      onCreada();
-      onHide();
-    } catch (err) {
-      const msg = err.response?.data?.errors?.[0]?.msg
-        || err.response?.data?.error
-        || 'Error al crear la tarea';
-      toast.error(msg);
-    } finally {
-      setCargando(false);
-    }
-  };
+  const [cargandoIA, setCargandoIA] = useState(false);
+  const [enviando, setEnviando] = useState(false);
 
   if (!show) return null;
 
-  return (
-    <>
-      {/* Backdrop */}
-      <div
-        role="presentation"
-        onClick={onHide}
-        style={{
-          position: 'fixed', inset: 0,
-          background: 'rgba(0,0,0,0.65)',
-          backdropFilter: 'blur(2px)',
-          WebkitBackdropFilter: 'blur(2px)',
-          zIndex: 1050,
-        }}
-      />
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
 
-      {/* Dialog */}
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="modal-crear-tarea-titulo"
-        style={{
-          position: 'fixed', inset: 0,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 1051, padding: '1rem',
-          pointerEvents: 'none',
-        }}
-      >
+  /* ─── Botón: Sugerir con IA ───────────────────────────── */
+  const handleSugerirIA = async () => {
+    if (!formData.titulo.trim()) {
+      toast.warning('Por favor, introduce un título primero para generar la descripción');
+      return;
+    }
+
+    setCargandoIA(true);
+    try {
+      // Intenta llamar al servicio de IA
+      const res = await iaService.sugerirDescripcion({ titulo: formData.titulo });
+      const descripcionGenerada = res.data?.descripcion || res.data?.sugerencia || res.data;
+
+      if (descripcionGenerada && typeof descripcionGenerada === 'string') {
+        setFormData((prev) => ({ ...prev, descripcion: descripcionGenerada }));
+        toast.success('Descripción generada con IA');
+      } else {
+        throw new Error('Formato de respuesta inválido');
+      }
+    } catch (error) {
+      console.error('Error al generar descripción con IA:', error);
+      toast.error('Error al generar descripción');
+    } finally {
+      setCargandoIA(false);
+    }
+  };
+
+  /* ─── Submit Formulario ──────────────────────────────── */
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!formData.titulo.trim() || !formData.fechaVencimiento) {
+      toast.warning('Por favor completa los campos obligatorios (*)');
+      return;
+    }
+
+    setEnviando(true);
+    try {
+      const payload = {
+        ...formData,
+        etiquetas: formData.etiquetas
+          ? formData.etiquetas.split(',').map((tag) => tag.trim()).filter(Boolean)
+          : [],
+      };
+
+      await tareaService.crear(payload);
+      toast.success('Tarea creada con éxito');
+      
+      // Limpiar formulario y notificar
+      setFormData({
+        titulo: '',
+        descripcion: '',
+        prioridad: 'media',
+        categoria: 'General',
+        fechaVencimiento: '',
+        etiquetas: '',
+      });
+      onCreada();
+      onHide();
+    } catch (error) {
+      console.error('Error al crear tarea:', error);
+      toast.error('Error al crear la tarea');
+    } finally {
+      setEnviando(false);
+    }
+  };
+
+  return (
+    <div
+      className="modal fade show d-block"
+      tabIndex="-1"
+      style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}
+    >
+      <div className="modal-dialog modal-dialog-centered modal-lg">
         <div
           className="modal-content"
           style={{
-            width: '100%', maxWidth: 640,
-            maxHeight: '90vh', overflowY: 'auto',
-            borderRadius: 'var(--st-radius)',
-            border: '1px solid var(--st-border)',
-            background: 'var(--st-surface)',
-            pointerEvents: 'all',
+            background: 'var(--st-surface, #1e293b)',
+            border: '1px solid var(--st-border, #334155)',
+            color: 'var(--st-text, #f8fafc)',
+            borderRadius: 16,
           }}
-          onClick={e => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="modal-header">
-            <h5
-              id="modal-crear-tarea-titulo"
-              className="modal-title fw-semibold d-flex align-items-center gap-2"
-            >
-              <i className="bi bi-plus-circle" style={{ color: 'var(--st-primary)' }} />
-              Nueva Tarea
+          <div
+            className="modal-header"
+            style={{ borderBottom: '1px solid var(--st-border, #334155)' }}
+          >
+            <h5 className="modal-title fw-bold d-flex align-items-center gap-2">
+              <i className="bi bi-plus-circle text-primary" /> Nueva Tarea
             </h5>
             <button
+              type="button"
               className="btn-close btn-close-white"
-              aria-label="Cerrar"
               onClick={onHide}
             />
           </div>
 
-          {/* Formulario */}
+          {/* Form */}
           <form onSubmit={handleSubmit}>
-            <div className="modal-body">
-
+            <div className="modal-body p-4">
               {/* Título */}
               <div className="mb-3">
-                <label className="form-label" htmlFor="tarea-titulo">
-                  Título <span style={{ color: 'var(--st-danger)' }}>*</span>
+                <label className="form-label fw-semibold" style={{ fontSize: '0.875rem' }}>
+                  Título <span className="text-danger">*</span>
                 </label>
                 <input
-                  id="tarea-titulo"
                   type="text"
                   name="titulo"
                   className="form-control"
-                  placeholder="¿Qué necesitas hacer?"
-                  required minLength={3} maxLength={100}
-                  value={form.titulo}
+                  placeholder="Crear el anteproyecto de SmartTask IA"
+                  value={formData.titulo}
                   onChange={handleChange}
-                  autoFocus
+                  required
                 />
               </div>
 
-              {/* Descripción con sugerencia IA */}
+              {/* Descripción + Botón IA */}
               <div className="mb-3">
                 <div className="d-flex justify-content-between align-items-center mb-1">
-                  <label className="form-label mb-0" htmlFor="tarea-descripcion">
+                  <label className="form-label fw-semibold mb-0" style={{ fontSize: '0.875rem' }}>
                     Descripción
                   </label>
                   <button
                     type="button"
                     className="btn btn-sm d-flex align-items-center gap-1"
-                    onClick={handleSugerirDesc}
-                    disabled={sugirendoDesc}
-                    aria-label="Sugerir descripción con IA"
+                    onClick={handleSugerirIA}
+                    disabled={cargandoIA}
                     style={{
-                      background: 'rgba(99,102,241,0.15)',
-                      color: 'var(--st-primary)',
-                      border: '1px solid rgba(99,102,241,0.3)',
-                      fontSize: '0.78rem', padding: '3px 10px', borderRadius: 20,
+                      background: 'rgba(99, 102, 241, 0.15)',
+                      color: '#818cf8',
+                      border: '1px solid rgba(99, 102, 241, 0.3)',
+                      borderRadius: 8,
+                      fontSize: '0.78rem',
+                      padding: '4px 10px',
                     }}
                   >
-                    {sugirendoDesc
-                      ? <><span className="spinner-border spinner-border-sm" style={{ width: 12, height: 12 }} /> Generando...</>
-                      : <><i className="bi bi-magic" /> Sugerir con IA</>
-                    }
+                    {cargandoIA ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-1" role="status" />
+                        Generando...
+                      </>
+                    ) : (
+                      <>
+                        <i className="bi bi-[#6366f1] bi-magic" /> Sugerir con IA
+                      </>
+                    )}
                   </button>
                 </div>
                 <textarea
-                  id="tarea-descripcion"
                   name="descripcion"
                   className="form-control"
-                  rows={3}
-                  maxLength={1000}
+                  rows="3"
                   placeholder="Describe la tarea en detalle..."
-                  value={form.descripcion}
+                  value={formData.descripcion}
                   onChange={handleChange}
                 />
               </div>
 
               {/* Prioridad, Categoría, Fecha */}
-              <div className="row g-3">
-                <div className="col-6 col-md-4">
-                  <label className="form-label" htmlFor="tarea-prioridad">
-                    Prioridad <span style={{ color: 'var(--st-danger)' }}>*</span>
+              <div className="row g-3 mb-3">
+                <div className="col-12 col-md-4">
+                  <label className="form-label fw-semibold" style={{ fontSize: '0.875rem' }}>
+                    Prioridad <span className="text-danger">*</span>
                   </label>
                   <select
-                    id="tarea-prioridad"
                     name="prioridad"
                     className="form-select"
-                    value={form.prioridad}
+                    value={formData.prioridad}
                     onChange={handleChange}
                   >
-                    <option value="baja">🟢 Baja</option>
-                    <option value="media">🔵 Media</option>
-                    <option value="alta">🟡 Alta</option>
-                    <option value="urgente">🔴 Urgente</option>
-                  </select>
-                </div>
-
-                <div className="col-6 col-md-4">
-                  <label className="form-label" htmlFor="tarea-categoria">Categoría</label>
-                  <select
-                    id="tarea-categoria"
-                    name="categoria"
-                    className="form-select"
-                    value={form.categoria}
-                    onChange={handleChange}
-                  >
-                    {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
+                    <option value="baja">Baja</option>
+                    <option value="media">Media</option>
+                    <option value="alta">Alta</option>
+                    <option value="urgente">Urgente</option>
                   </select>
                 </div>
 
                 <div className="col-12 col-md-4">
-                  <label className="form-label" htmlFor="tarea-fecha">
-                    Fecha de vencimiento <span style={{ color: 'var(--st-danger)' }}>*</span>
+                  <label className="form-label fw-semibold" style={{ fontSize: '0.875rem' }}>
+                    Categoría
                   </label>
                   <input
-                    id="tarea-fecha"
+                    type="text"
+                    name="categoria"
+                    className="form-control"
+                    placeholder="General"
+                    value={formData.categoria}
+                    onChange={handleChange}
+                  />
+                </div>
+
+                <div className="col-12 col-md-4">
+                  <label className="form-label fw-semibold" style={{ fontSize: '0.875rem' }}>
+                    Fecha de vencimiento <span className="text-danger">*</span>
+                  </label>
+                  <input
                     type="date"
                     name="fechaVencimiento"
                     className="form-control"
-                    required
-                    min={new Date().toISOString().split('T')[0]}
-                    value={form.fechaVencimiento}
+                    value={formData.fechaVencimiento}
                     onChange={handleChange}
+                    required
                   />
                 </div>
               </div>
 
               {/* Etiquetas */}
-              <div className="mt-3">
-                <label className="form-label" htmlFor="tarea-etiquetas">
-                  Etiquetas{' '}
-                  <span style={{ color: 'var(--st-muted)', fontWeight: 400 }}>
-                    (separadas por coma)
-                  </span>
+              <div className="mb-2">
+                <label className="form-label fw-semibold" style={{ fontSize: '0.875rem' }}>
+                  Etiquetas <span className="text-muted fw-normal">(separadas por coma)</span>
                 </label>
                 <input
-                  id="tarea-etiquetas"
                   type="text"
                   name="etiquetas"
                   className="form-control"
                   placeholder="ej: react, backend, urgente"
-                  value={form.etiquetas}
+                  value={formData.etiquetas}
                   onChange={handleChange}
                 />
               </div>
             </div>
 
             {/* Footer */}
-            <div className="modal-footer">
+            <div
+              className="modal-footer"
+              style={{ borderTop: '1px solid var(--st-border, #334155)' }}
+            >
               <button
                 type="button"
-                className="btn"
+                className="btn btn-secondary"
                 onClick={onHide}
+                disabled={enviando}
                 style={{
-                  background: 'var(--st-surface2)',
-                  color: 'var(--st-muted)',
-                  border: '1px solid var(--st-border)',
+                  background: 'var(--st-surface2, #334155)',
+                  border: 'none',
+                  color: 'var(--st-text, #f8fafc)',
                 }}
               >
                 Cancelar
               </button>
               <button
                 type="submit"
-                className="btn btn-primary d-flex align-items-center gap-2"
-                disabled={cargando}
+                className="btn btn-primary d-flex align-items-center gap-1"
+                disabled={enviando}
               >
-                {cargando
-                  ? <><span className="spinner-border spinner-border-sm" />Creando...</>
-                  : <><i className="bi bi-check-lg" />Crear tarea</>
-                }
+                {enviando ? (
+                  <>
+                    <span className="spinner-border spinner-border-sm me-1" />
+                    Guardando...
+                  </>
+                ) : (
+                  <>
+                    <i className="bi bi-check-lg" /> Crear tarea
+                  </>
+                )}
               </button>
             </div>
           </form>
         </div>
       </div>
-    </>
+    </div>
   );
 }

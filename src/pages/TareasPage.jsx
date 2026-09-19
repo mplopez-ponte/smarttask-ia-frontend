@@ -10,6 +10,7 @@ import {
   useSensor,
   useSensors,
   closestCorners,
+  pointerWithin,
   useDroppable,
 } from '@dnd-kit/core';
 import {
@@ -31,7 +32,7 @@ const COLUMNAS = [
   { key: 'cancelada',   label: 'Cancelada',    color: '#ef4444', icon: 'bi-x-circle' },
 ];
 
-/* ─── Tarjeta arrastrable ─────────────────────────────── */
+/* ─── Tarjeta arrastrable (Presentacional) ─────────────────────────────── */
 function TareaCard({ tarea, isDragging = false }) {
   const prioColors = { baja: '#10b981', media: '#3b82f6', alta: '#f59e0b', urgente: '#ef4444' };
   const color = prioColors[tarea.prioridad] || '#6366f1';
@@ -50,7 +51,6 @@ function TareaCard({ tarea, isDragging = false }) {
         transition: 'box-shadow 0.15s, border-color 0.15s',
         userSelect: 'none',
         WebkitUserSelect: 'none',
-        /* Borde izquierdo de color según prioridad */
         borderLeft: `3px solid ${color}`,
       }}
     >
@@ -130,7 +130,6 @@ function SortableTareaCard({ tarea }) {
       <Link
         to={`/tareas/${tarea._id}`}
         className="text-decoration-none d-block"
-        /* Cancelar navegación si se está arrastrando */
         onClick={e => { if (isDragging) e.preventDefault(); }}
         draggable={false}
       >
@@ -142,10 +141,11 @@ function SortableTareaCard({ tarea }) {
 
 /* ─── Columna droppable ───────────────────────────────── */
 function KanbanColumna({ col, tareas, isOver }) {
-  const { setNodeRef } = useDroppable({ id: col.key });
+  // Asignamos la zona droppable a la columna entera
+  const { setNodeRef } = useDroppable({ id: col.key, data: { tipo: 'columna', colKey: col.key } });
 
   return (
-    <div className="kanban-col">
+    <div className="kanban-col" ref={setNodeRef}>
       <div
         style={{
           background: isOver ? `${col.color}0d` : 'var(--st-surface)',
@@ -153,7 +153,7 @@ function KanbanColumna({ col, tareas, isOver }) {
           borderRadius: 12,
           display: 'flex',
           flexDirection: 'column',
-          minHeight: 200,
+          minHeight: 300,
           transition: 'background 0.2s, border-color 0.2s',
         }}
       >
@@ -177,14 +177,13 @@ function KanbanColumna({ col, tareas, isOver }) {
 
         {/* Lista de tarjetas */}
         <div
-          ref={setNodeRef}
           style={{
             flex: 1,
             padding: '0.6rem',
             display: 'flex',
             flexDirection: 'column',
             gap: '0.5rem',
-            minHeight: 80,
+            minHeight: 120,
           }}
         >
           <SortableContext items={tareas.map(t => t._id)} strategy={verticalListSortingStrategy}>
@@ -200,7 +199,7 @@ function KanbanColumna({ col, tareas, isOver }) {
                 justifyContent: 'center',
                 color: 'var(--st-muted)',
                 fontSize: '0.8rem',
-                minHeight: 80,
+                minHeight: 100,
                 border: `2px dashed ${isOver ? col.color + '55' : 'var(--st-border)'}`,
                 borderRadius: 8,
                 transition: 'border-color 0.2s',
@@ -236,7 +235,6 @@ export default function TareasPage() {
   const [overColKey, setOverColKey] = useState(null);
   const activeTarea = tareas.find(t => t._id === activeId);
 
-  /* Evitar múltiples llamadas simultáneas al cambiar estado */
   const actualizandoRef = useRef(false);
 
   const cargarTareas = useCallback(async () => {
@@ -244,7 +242,7 @@ export default function TareasPage() {
     try {
       const params = {
         page: pagina,
-        limit: 100, // cargamos más en kanban para mostrar todas
+        limit: 100,
         ...Object.fromEntries(Object.entries(filtros).filter(([, v]) => v)),
       };
       const { data } = await tareaService.obtenerTodas(params);
@@ -288,37 +286,45 @@ export default function TareasPage() {
     return { label: `${dias}d restantes`, color: 'var(--st-muted)' };
   };
 
-  const tareasPorEstado = (estado) =>
-    tareas
-      .filter(t => t.estado === estado)
-      .sort((a, b) => (PRIORIDAD_ORDEN[a.prioridad] || 99) - (PRIORIDAD_ORDEN[b.prioridad] || 99));
+  // Obtener tareas filtradas por columna
+  const tareasPorEstado = (estado) => tareas.filter(t => t.estado === estado);
 
   /* ── Sensores DnD ── */
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: { distance: 6 }, // requiere mover 6px para activar drag
+      activationConstraint: { distance: 5 },
     }),
     useSensor(TouchSensor, {
-      activationConstraint: { delay: 200, tolerance: 8 }, // en móvil: 200ms pulsación larga
+      activationConstraint: { delay: 150, tolerance: 5 },
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
   );
 
+  // Algoritmo de detección de colisiones personalizado para Kanban
+  const customCollisionDetection = useCallback((args) => {
+    const pointerCollisions = pointerWithin(args);
+    if (pointerCollisions.length > 0) {
+      return pointerCollisions;
+    }
+    return closestCorners(args);
+  }, []);
+
   const handleDragStart = ({ active }) => {
     setActiveId(active.id);
   };
 
-  const handleDragOver = ({ over }) => {
+  const handleDragOver = ({ active, over }) => {
     if (!over) { setOverColKey(null); return; }
-    // Si over es una columna directamente
-    const esColumna = COLUMNAS.some(c => c.key === over.id);
+
+    const overId = over.id;
+    const esColumna = COLUMNAS.some(c => c.key === overId);
+
     if (esColumna) {
-      setOverColKey(over.id);
+      setOverColKey(overId);
     } else {
-      // Si over es una tarjeta, encontrar su columna
-      const tareaOver = tareas.find(t => t._id === over.id);
+      const tareaOver = tareas.find(t => t._id === overId);
       setOverColKey(tareaOver?.estado || null);
     }
   };
@@ -327,45 +333,48 @@ export default function TareasPage() {
     setActiveId(null);
     setOverColKey(null);
 
-    if (!over || actualizandoRef.current) return;
+    if (!over) return;
 
-    const tareaArrastrada = tareas.find(t => t._id === active.id);
+    const activeId = active.id;
+    const overId = over.id;
+
+    const tareaArrastrada = tareas.find(t => t._id === activeId);
     if (!tareaArrastrada) return;
 
-    // Determinar la columna destino
-    const esColumna = COLUMNAS.some(c => c.key === over.id);
-    let nuevoEstado;
+    // Determinar nuevo estado objetivo
+    let nuevoEstado = null;
+    const esColumnaDirecta = COLUMNAS.some(c => c.key === overId);
 
-    if (esColumna) {
-      nuevoEstado = over.id;
+    if (esColumnaDirecta) {
+      nuevoEstado = overId;
     } else {
-      const tareaDestino = tareas.find(t => t._id === over.id);
+      const tareaDestino = tareas.find(t => t._id === overId);
       nuevoEstado = tareaDestino?.estado;
     }
 
     if (!nuevoEstado || nuevoEstado === tareaArrastrada.estado) return;
 
-    // Actualización optimista: cambiar estado en UI inmediatamente
+    const estadoAnterior = tareaArrastrada.estado;
+
+    // 1. Actualización optimista del estado local
     setTareas(prev =>
-      prev.map(t => t._id === active.id ? { ...t, estado: nuevoEstado } : t)
+      prev.map(t => (t._id === activeId ? { ...t, estado: nuevoEstado } : t))
     );
 
-    actualizandoRef.current = true;
+    // 2. Persistencia en Backend en segundo plano sin forzar re-fetch completo
     try {
-      await tareaService.cambiarEstado(active.id, nuevoEstado);
+      actualizandoRef.current = true;
+      await tareaService.cambiarEstado(activeId, nuevoEstado);
+
       const col = COLUMNAS.find(c => c.key === nuevoEstado);
-      toast.success(
-        <span>
-          Movida a <strong>{col?.label}</strong>
-        </span>,
-        { icon: '✅', autoClose: 2000 }
-      );
-    } catch {
-      // Revertir si falla
+      toast.success(`Movida a ${col?.label || nuevoEstado}`, { autoClose: 1500 });
+    } catch (error) {
+      console.error('Error al guardar estado de la tarea:', error);
+      // 3. Rollback en caso de error
       setTareas(prev =>
-        prev.map(t => t._id === active.id ? { ...t, estado: tareaArrastrada.estado } : t)
+        prev.map(t => (t._id === activeId ? { ...t, estado: estadoAnterior } : t))
       );
-      toast.error('Error al mover la tarea');
+      toast.error('Error al conectar con el servidor');
     } finally {
       actualizandoRef.current = false;
     }
@@ -424,7 +433,6 @@ export default function TareasPage() {
       {/* ── Filtros ── */}
       <div className="st-card p-3 mb-4">
         <div className="row g-2 align-items-end">
-          {/* Buscador — ancho completo en móvil */}
           <div className="col-12 col-md-5">
             <div className="input-group">
               <span className="input-group-text">
@@ -439,7 +447,6 @@ export default function TareasPage() {
               />
             </div>
           </div>
-          {/* Estado */}
           <div className="col-6 col-md-3">
             <select
               className="form-select"
@@ -501,7 +508,7 @@ export default function TareasPage() {
           </div>
         ) : (
           <div className="d-flex flex-column gap-2">
-            {tareas
+            {[...tareas]
               .sort((a, b) => (PRIORIDAD_ORDEN[a.prioridad] || 99) - (PRIORIDAD_ORDEN[b.prioridad] || 99))
               .map(tarea => {
                 const dr = getDiasRestantes(tarea.fechaVencimiento);
@@ -601,7 +608,6 @@ export default function TareasPage() {
           </div>
         ) : (
           <>
-            {/* Hint drag & drop */}
             <div
               className="d-flex align-items-center gap-2 mb-3 px-1"
               style={{ fontSize: '0.78rem', color: 'var(--st-muted)' }}
@@ -613,7 +619,7 @@ export default function TareasPage() {
 
             <DndContext
               sensors={sensors}
-              collisionDetection={closestCorners}
+              collisionDetection={customCollisionDetection}
               onDragStart={handleDragStart}
               onDragOver={handleDragOver}
               onDragEnd={handleDragEnd}
@@ -630,7 +636,6 @@ export default function TareasPage() {
                 ))}
               </div>
 
-              {/* Overlay: tarjeta flotante mientras se arrastra */}
               <DragOverlay dropAnimation={{
                 duration: 180,
                 easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)',
